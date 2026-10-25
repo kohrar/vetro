@@ -48,7 +48,7 @@ function inflate(data) {
         stream.end(data);
     });
 }
-async function fromBuffer(zip) {
+async function fromBuffer(zip, options) {
     if (zip.length < 22 || zip.length > MAX_WGT) throw new Error('invalid WGT size');
     var end = -1;
     for (var at = zip.length - 22; at >= Math.max(0, zip.length - 65557); at--) {
@@ -57,13 +57,15 @@ async function fromBuffer(zip) {
     if (end < 0 || zip.readUInt16LE(end + 4) || zip.readUInt16LE(end + 6)) throw new Error('unsupported WGT ZIP');
     var count = zip.readUInt16LE(end + 10), size = zip.readUInt32LE(end + 12), offset = zip.readUInt32LE(end + 16);
     if (!count || count > 4096 || zip.readUInt16LE(end + 8) !== count || size > 1048576 || offset + size !== end) throw new Error('invalid ZIP directory');
-    var config;
+    var config, names = Object.create(null);
     for (var i = 0, pos = offset; i < count; i++) {
         if (pos + 46 > end || zip.readUInt32LE(pos) !== 0x02014b50) throw new Error('invalid ZIP entry');
         var nameLen = zip.readUInt16LE(pos + 28), extra = zip.readUInt16LE(pos + 30), comment = zip.readUInt16LE(pos + 32);
         var next = pos + 46 + nameLen + extra + comment;
         if (next > end) throw new Error('truncated ZIP directory');
         var name = zip.slice(pos + 46, pos + 46 + nameLen).toString('utf8');
+        if (names[name] || name[0] === '/' || name.split('/').indexOf('..') !== -1) throw new Error('duplicate or unsafe ZIP entry');
+        names[name] = true;
         if (name === 'config.xml') {
             if (config) throw new Error('duplicate config.xml');
             var flags = zip.readUInt16LE(pos + 8), method = zip.readUInt16LE(pos + 10);
@@ -80,7 +82,13 @@ async function fromBuffer(zip) {
         pos = next;
     }
     if (pos !== end || config == null) throw new Error('missing or invalid config.xml');
-    return {packageId: manifestId(config)};
+    config = config.replace(/<!--[\s\S]*?-->/g, '');
+    var packageId = manifestId(config);
+    var widget = /<widget\b([^>]*)>/.exec(config), version = widget && /\bversion\s*=\s*(["'])([0-9]+\.[0-9]+\.[0-9]+)\1/.exec(widget[1]);
+    var signed = !!(names['author-signature.xml'] && names['signature1.xml']);
+    if (options && options.requireSigned && (!signed || !version)) throw new Error('Upload a signed WGT with author and distributor signatures and a valid version');
+    var label = /<name(?:\s[^>]*)?>([^<]{1,200})<\/name>/.exec(config);
+    return {packageId: packageId, version: version ? version[2] : null, name: label ? label[1] : packageId, signed: signed};
 }
 async function read(wgtPath) {
     if (typeof wgtPath !== 'string' || !/^\/[A-Za-z0-9_./-]+\.wgt$/.test(wgtPath)) throw new Error('expected an absolute .wgt path without spaces or shell characters');
@@ -99,4 +107,4 @@ async function read(wgtPath) {
         return await fromBuffer(data);
     } finally { await file.close(); }
 }
-module.exports = {read: read, fromBuffer: fromBuffer, manifestId: manifestId, crc32: crc32};
+module.exports = {read: read, fromBuffer: fromBuffer, manifestId: manifestId, crc32: crc32, MAX_WGT: MAX_WGT};

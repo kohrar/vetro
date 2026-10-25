@@ -98,3 +98,23 @@ Open `http://TV_IP:8099/status` in a browser and read these fields:
 | `"attempts"` lists launches that end without `agent-connected` | Root did not work on this firmware, or SDB refused the connection. | Download the report from **Diagnostics** and attach it to a new issue; it contains no addresses or serial numbers. |
 
 Several sections of the diagnostic report say *unavailable: no root agent connected* until the helper is up. That is expected during those first 90 seconds, and it is the usual picture for a TV where step 5 was skipped.
+
+## Install another signed app from the dashboard
+
+Open **Install app**, choose a `.wgt` signed for this TV (up to 32 MiB), and select
+**Upload and review**. Check its app name, package ID and version, then select
+**Install on TV**. Uploading alone never submits an installation.
+
+Vetro requires a connected root agent to read the native package inventory. It
+checks the installer response and freshly reads that inventory to confirm the
+uploaded version. **Installation verified** confirms the installed version, not
+that the app opens or behaves correctly. A failed or disconnected request never
+automatically retries an installation. Reopen **Install app** or use **Check status**
+to recover the result after reloading the browser. Results survive browser reloads,
+but not a Vetro service restart.
+
+Vetro checks for author/distributor signature files; the TV validates the actual
+signatures and certificate permissions. This screen does not sign packages or
+accept certificates. Uploaded files expire after 15 minutes and are deleted after
+an installation attempt. Use the desktop tools for Vetro's own updates so that
+restarting Vetro cannot interrupt verification of its own installation.

@@ -144,6 +144,32 @@ function downloadDiagnostics(res) {
 
 // --- app installation through the platform adapter -------------------------
 var installPending = 0;
+var installer = new (require('./installer.js').Installer)({
+    status: function () { return platform.status(); },
+    isBusy: function () { return !!(installPending || debloatBusy); },
+    inventory: function () { return AppRegistry.load(agentExecute, state); },
+    install: function (id, file) {
+        installPending++;
+        return platform.install(id, file).finally(function () { installPending--; registryAt=0; });
+    }
+});
+function handleInstaller(req, res, url) {
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.method === 'GET' && url === '/installer') return serveJson(res, installer.snapshot());
+    if (req.method !== 'POST') return serveJson(res, {error:'Unsupported installer request'}, 405);
+    var origin = req.headers.origin;
+    if (origin && origin !== 'http://' + req.headers.host) return serveJson(res, {error:'Open the installer from this TV dashboard'}, 403);
+    if (url === '/installer/upload') return installer.receive(req).then(function (d) { serveJson(res,d,201); })
+        .catch(function (e) { req.resume(); serveJson(res,{error:e.message},e.statusCode||400); });
+    if (url === '/installer/install') {
+        if ((req.headers['content-type'] || '').split(';')[0] !== 'application/json') return serveJson(res,{error:'Expected JSON'},415);
+        return readJsonBody(req,res,function (p) {
+            try { serveJson(res,installer.start(p.token),202); }
+            catch (e) { serveJson(res,{error:e.message},e.statusCode||400); }
+        });
+    }
+    serveJson(res,{error:'Installer endpoint not found'},404);
+}
 function handleInstall(req, res) {
     readJsonBody(req, res, function (parsed) {
         packageInfo.read(parsed.path).then(function (info) {
@@ -546,6 +572,9 @@ function handleRemapRun(req,res){readJsonBody(req,res,function(p){
 
 http.createServer(function (req, res) {
     var url = (req.url || '/').split('?')[0];
+    if (url === '/installer' || url.indexOf('/installer/') === 0) return handleInstaller(req,res,url);
+    if (req.method === 'POST' && installer.busy() && ['/install','/components/action','/quick','/debloat','/leftovers'].indexOf(url)>=0)
+        return serveJson(res,{error:'An app upload or installation is in progress'},409);
     if (url === '/diagnostics/download') {
         if (req.method !== 'GET') return serveJson(res, {error:'Use GET to download diagnostics'}, 405);
         return downloadDiagnostics(res);
