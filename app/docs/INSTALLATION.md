@@ -62,6 +62,8 @@ cd ..
 OUT=/tmp/vetro.wgt node build.cjs
 ```
 
+**Port clash (for example with tizen-youtube):** Vetro listens on port 8099. If another app on the TV uses the same port, build with another one, for example `VETRO_PORT=9000 OUT=/tmp/vetro.wgt node build.cjs` (a whole number from 1024 to 65535, not 8001 or 8002). The port is written into the package, so the dashboard is then at `http://TV_IP:9000/`, and the scripts need `--base http://TV_IP:9000`. Changing it later means building and installing again.
+
 The resulting integration WGT contains privileged components. There is no universal certificate or guaranteed root compatibility. The bundled integration derives from [Samsung TV root research](https://github.com/chris-ritsen/samsung-tv-root); consult its compatibility information and [integration notes](../../rooting/README.md). Do not treat successful signing as successful privilege acquisition.
 
 ### 4. Install and verify
@@ -191,3 +193,9 @@ restart the service, then immediately set a new password. There is no remote res
 endpoint. Local development uses `~/.config/vetro/auth.json` instead; the
 `VETRO_AUTH_FILE` environment variable can select a separate test file. Corrupt or
 unreadable settings fail closed and require local repair.
+
+
+Self-updates retain the dashboard port. Upstream 0.3.0 supports choosing a port
+with `VETRO_PORT` at build time; changing an installed TV to a different port
+requires a desktop installation. An update built for the same custom port remains
+supported, including browser login and post-restart verification.

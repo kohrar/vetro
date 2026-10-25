@@ -11,7 +11,7 @@ function Installer(options) {
     this.receiving = false;
     this.job = null;
     var self=this;
-    this.selfUpdate = new (require('./self-update.js').SelfUpdate)({root:options.root, checkpoint:options.checkpoint, version:options.version,
+    this.selfUpdate = new (require('./self-update.js').SelfUpdate)({root:options.root, checkpoint:options.checkpoint, version:options.version, port:options.port,
         inventory:options.inventory, available:function(){return self.available();}});
 }
 Installer.prototype.recover = function () {

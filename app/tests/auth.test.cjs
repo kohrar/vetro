@@ -22,7 +22,7 @@ const password='Example password 123';
  assert.ok(!fs.readFileSync(file,'utf8').includes(password));assert.ok(!fs.readFileSync(file,'utf8').includes(first.split('=')[1]),'only session digests persist');
  const blocked=await request('GET','/');assert.equal(blocked.status,303);assert.equal(blocked.headers.location,'/login');assert.ok(!blocked.body.includes('Quick settings'));
  const login=await request('GET','/login');assert.equal(login.status,200);assert.ok(!login.body.includes('id="quick"'));assert.match(login.headers['cache-control'],/no-store/);
- const endpoints=['/exec','/installer','/diagnostics/download','/apps','/mqtt','/probe','/telemetry','/settings','/tv-settings','/unknown'];
+ const endpoints=['/dock','/dock/icon?slug=settings','/wins','/exec','/installer','/diagnostics/download','/apps','/mqtt','/probe','/telemetry','/settings','/tv-settings','/unknown'];
  for(const u of endpoints){assert.equal((await request('GET',u)).status,401,u);if(u!=='/probe')assert.equal((await request('POST',u,{})).status,401,u);}
  // Only the TV-local widget exchange can bypass authentication. A LAN client cannot spoof it.
  assert.equal((await request('GET','/status')).status,200,'loopback widget status survives authentication');

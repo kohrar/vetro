@@ -14,6 +14,7 @@ function SelfUpdate(options){
     this.root=options.root||path.resolve(__dirname,'..');
     this.file=options.checkpoint||'/home/owner/share/vetro/self-update.json';
     this.version=options.version||require('./build-info.js').version;
+    this.port=options.port||require('./build-info.js').port||8099;
     this.instance=crypto.randomBytes(16).toString('hex');
     this.record=null;this.timer=null;this.checking=false;
 }
@@ -29,6 +30,7 @@ SelfUpdate.prototype.inspect=async function(buffer,metadata){
     var identity;
     try{identity=JSON.parse(build[1]);}catch(_){throw Error('Invalid Vetro build metadata');}
     if(identity.version!==metadata.version)throw Error('The package and Vetro build versions do not match');
+    if((identity.port||8099)!==this.port)throw Error('Use the desktop tools to change the dashboard port; self-updates must keep port '+this.port);
     if(files['service/platform.js'].toString('utf8').indexOf('tv-integration')<0)throw Error('An app-only package cannot update the TV integration');
     var config=files['config.xml'].toString('utf8');
     if(!/\bid=["']vetrotvapp\.app["']/.test(config)||!/\bid=["']vetrotvapp\.svc["']/.test(config))throw Error('Vetro application/service identities do not match');

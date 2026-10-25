@@ -26,6 +26,9 @@ function installFiles(list){for(const f of list){const p=path.join(root,f.uri);f
  await assert.rejects(upload(i,zip(files('0.2.5',other))),/same author/);
  await assert.rejects(upload(i,zip(files().filter(f=>f.uri!=='payload/SamsungTvRootAgent.dll'))),/incomplete/);
  const wrongMetadata=files();wrongMetadata.find(f=>f.uri==='service/build-info.js').data=Buffer.from('module.exports = {"version":"0.2.4"};');await assert.rejects(upload(i,zip(wrongMetadata)),/versions do not match/);
+ const movedPort=files();movedPort.find(f=>f.uri==='service/build-info.js').data=Buffer.from('module.exports = '+JSON.stringify({version:'0.2.5',port:9123})+';');
+ await assert.rejects(upload(i,zip(movedPort)),/desktop tools to change the dashboard port/);
+ const samePort=make();samePort.selfUpdate.port=9123;const acceptedCustom=await upload(samePort,zip(movedPort));assert.equal(acceptedCustom.upload.selfUpdate,true);samePort.clear();
  const u=(await upload(i,zip(files()))).upload;assert.equal(u.selfUpdate,true);
  assert.throws(()=>i.start(u.token),/Confirm/);assert.equal(calls,0);
  simulateRestart=true;i.start(u.token,true);await i.completion;
