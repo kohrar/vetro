@@ -57,7 +57,7 @@ Root and startup support depend on firmware, Developer Mode and your signing pri
 
 Vetro **0.2.3** is installed on the test TV, with its source revision and authenticated UID-0 agent verified. Autonomous root recovery was observed after an earlier cold boot; unattended cold boot of 0.2.3 remains to be checked. Startup can take up to 90 seconds.
 
-The dashboard uses plain HTTP and currently has no browser login. Keep it on a trusted, isolated LAN with no public exposure. Privileged changes can disrupt TV features; review each target before changing it.
+The dashboard uses plain HTTP. Version 0.2.5 adds an optional password in Quick settings, protecting both the interface and its management APIs after you set it. HTTP does not encrypt passwords or traffic. Keep it on a trusted, isolated LAN with no public exposure. Privileged changes can disrupt TV features; review each target before changing it.
 
 [Install and configure Vetro →](app/docs/INSTALLATION.md) · [Integration details](rooting/README.md) · [Validation record](app/docs/RELEASE-AUDIT.md)
 

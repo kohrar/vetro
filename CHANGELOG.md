@@ -2,13 +2,22 @@
 
 ## Unreleased
 
+- **Vetro 0.2.5 dashboard password:** Quick settings has one password field and a
+  Save button. Once configured, a separate sign-in page gates the dashboard and
+  management APIs. Salted scrypt hashes, persistent hashed sessions, session expiry,
+  password-change revocation, sign-out and failed-login rate limits are included.
+  Passwords and sessions survive self-updates. Only the narrow TV-local widget
+  exchange remains exempt; HTTP traffic is still unencrypted.
+
 - **Vetro 0.2.4 self-updates:** Install app accepts newer TV integration packages
   signed by the same author. Updates require an explicit recovery acknowledgement,
   persist a checkpoint before submission, and never automatically retry. After a
   restart Vetro checks payload hashes, author identity, running version and native
   inventory. The browser reconnects and offers to reload the updated dashboard.
-  Fixture tests cover failures and restart recovery; physical-TV self-update and
-  manual recovery remain unverified. There is no automatic rollback.
+  Fixture tests cover failures and restart recovery. A controlled 0.2.4 → 0.2.5
+  self-update on a QN70Q60AAVXZC passed restart, payload, author and native-version
+  checks with root reconnected; manual recovery and power-loss handling remain
+  unverified. There is no automatic rollback.
 
 - **Diagnostics read from seven community reports:** two things had never worked outside the Q80A. The SoC temperature was empty in every report, because Samsung's TVs have no Linux thermal zones; Vetro now reads the driver's own file (`/sys/devices/platform/soc/*thermal/temperature`, whole degrees), which also fills the MQTT temperature sensor. And the CPU rate was empty in four of seven, because its second sample waited behind the slow startup listing in the TV's one-at-a-time command queue; the other reads now start after it.
 - **Startup listing no longer times out on slower TVs:** it was one command that needed 13–17 s of `systemctl list-unit-files` work on a Q80A, against a 15 s limit, and the Diagnostics `startup` section came back *unavailable: command timed out* in the QN55Q65, Q65S95C and QN55S95B reports. The running states and the boot states are now two commands (the second with a 60 s limit); if the second fails, the listing still shows what runs, with the boot state unknown. The report gives this section a longer deadline.

@@ -15,7 +15,12 @@ provide device operations. The optional integration implements this contract:
 The source boundary separates responsibilities; the full integration still has
 privileged behavior. The app-only build must not contain payloads, SDB or signing
 materials. The browser management HTTP interface currently requires a trusted
-LAN and has no login; agent authentication does not authenticate browser users.
+LAN. An optional dashboard password (0.2.5+) gates the UI and management APIs.
+Only loopback GET /status and POST /probe (plus their OPTIONS requests) bypass
+browser login so the packaged widget can start/probe the service. Other loopback
+operations still require a browser session. Agent authentication is independent.
+Auth state is stored outside the package, so self-updates retain the password and
+active sessions. HTTP traffic remains unencrypted.
 
 ### Physical remote feature
 

@@ -158,5 +158,36 @@ IP to `127.0.0.1`. If only root access is missing, opening Vetro once on the TV 
 start its service; then check Developer Mode and wait for the root agent.
 
 Self-update lifecycle and failure recovery have automated fixture coverage. A
-controlled self-update and recovery on a physical TV are still required before
-relying on this feature for unattended updates.
+controlled 0.2.4 → 0.2.5 self-update succeeded on a QN70Q60AAVXZC: the service
+restarted, its installed payload hashes, author certificate and native package
+version matched the saved checkpoint, and authenticated UID-0 access returned.
+This is one successful update, not a power-loss or rollback test. Manual recovery
+and repeated update cycles remain unverified.
+
+
+## Protect the dashboard with a password
+
+In **Quick settings → Dashboard password**, enter a password of 8–256 characters
+in the single password field and select **Save password**. The password is masked
+while typing and cleared after submission. No password is set automatically.
+Once saved, a new browser must sign in before receiving the dashboard or accessing
+its management APIs. Your current browser remains signed in. Use **Sign out** to
+end that browser's session. Saving a new password signs out every other browser;
+no second password field is needed while you are already signed in.
+
+Password hashes and session digests persist in
+`/home/owner/share/vetro/auth.json`, outside the application package. Updates and
+service restarts preserve them. Sessions expire after 12 hours or when revoked;
+the cookie lasts for the browser session. A browser that restores session cookies
+may restore the session too. The service rate limits repeated wrong passwords.
+
+Only TV-local widget status/probe traffic is exempt, so opening Vetro on the TV
+still works. LAN clients cannot bypass login by supplying forwarded-IP headers.
+HTTP does not encrypt the password or session traffic: keep the TV on a trusted,
+isolated LAN and never expose the dashboard publicly.
+
+If the password is forgotten, use trusted local access to remove the auth file and
+restart the service, then immediately set a new password. There is no remote reset
+endpoint. Local development uses `~/.config/vetro/auth.json` instead; the
+`VETRO_AUTH_FILE` environment variable can select a separate test file. Corrupt or
+unreadable settings fail closed and require local repair.

@@ -33,6 +33,34 @@ var leftovers = new (require('./leftovers.js').Leftovers)(agentExecute);
 // Components whose disabled flag Vetro may change: verified ACR set plus Quick Settings groups.
 var TOGGLE_IDS = debloat.VERIFIED_GLOBAL_IDS.concat(quickSettings.ALLOWED_IDS);
 var PORT = Number(process.env.VETRO_PORT) || 8099;
+var auth = new (require('./auth.js').Auth)({file:process.env.VETRO_AUTH_FILE ||
+    (platform.status().mode === 'tv-integration' ? '/home/owner/share/vetro/auth.json' : require('path').join(os.homedir(),'.config','vetro','auth.json'))});
+function redirectLogin(res, target) {
+    res.writeHead(303, {'Location':target || '/login','Cache-Control':'no-store'});res.end();
+}
+function widgetRequest(req,url) {
+    var address=req.socket&&req.socket.remoteAddress;
+    var local=address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';
+    return local && ((url==='/probe'&&(req.method==='POST'||req.method==='OPTIONS')) || (url==='/status'&&(req.method==='GET'||req.method==='OPTIONS')));
+}
+function handleAuth(req,res,url) {
+    if(url==='/auth/status'&&req.method==='GET')return serveJson(res,auth.status(req));
+    if(req.method!=='POST')return serveJson(res,{error:'Unsupported authentication request'},405);
+    var headers=req.headers||{};
+    if(headers.origin&&headers.origin!=='http://'+headers.host)return serveJson(res,{error:'Use this TV dashboard to sign in or change its password'},403);
+    if((headers['content-type']||'').split(';')[0]!=='application/json')return serveJson(res,{error:'Expected JSON'},415);
+    readJsonBody(req,res,function(p){
+        var task;
+        if(url==='/auth/login')task=auth.login(req,res,p.password);
+        else if(url==='/auth/password')task=auth.setPassword(req,res,p.password);
+        else if(url==='/auth/logout')task=Promise.resolve().then(function(){return auth.logout(req,res);});
+        else return serveJson(res,{error:'Authentication endpoint not found'},404);
+        task.then(function(){serveJson(res,{ok:true});}).catch(function(e){
+            if(e.statusCode===429&&res.setHeader)res.setHeader('Retry-After','30');
+            serveJson(res,{error:e.statusCode?e.message:'Password settings could not be saved. Try again.'},e.statusCode||503);
+        });
+    },4096);
+}
 
 // --- telemetry reader (service side, uid 5001) ---------------------------
 // Reads /proc and /sys directly via fs. No platform command is needed. Every read
@@ -575,6 +603,19 @@ function handleRemapRun(req,res){readJsonBody(req,res,function(p){
 
 http.createServer(function (req, res) {
     var url = (req.url || '/').split('?')[0];
+    if(res.setHeader){res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');}
+    if(url==='/login'){
+        if(req.method!=='GET')return serveJson(res,{error:'Use GET to sign in'},405);
+        if(!auth.enabled()||auth.authenticated(req))return redirectLogin(res,'/');
+        return serveHtml(res,require('./login.js')());
+    }
+    if(url.indexOf('/auth/')===0)return handleAuth(req,res,url);
+    if(auth.enabled()&&!auth.authenticated(req)&&!widgetRequest(req,url)){
+        if(req.resume)req.resume();
+        if(auth.error)return serveJson(res,{error:auth.error},503);
+        if(req.method==='GET'&&(url==='/'||url==='/index.html'))return redirectLogin(res);
+        return serveJson(res,{error:'Sign in required'},401);
+    }
     if (url === '/installer' || url.indexOf('/installer/') === 0) return handleInstaller(req,res,url);
     if (req.method === 'POST' && installer.busy() && ['/install','/components/action','/quick','/debloat','/leftovers'].indexOf(url)>=0)
         return serveJson(res,{error:'An app upload or installation is in progress'},409);
