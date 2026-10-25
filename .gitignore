@@ -2,10 +2,13 @@
 node_modules/
 dist/
 mint.log
+# Local Tizen Studio / Certificate Manager workspace
+/workspace/
 
 # Private keys / signing material (never commit)
 *.p12
 *.pfx
+*.pri
 *privatekey*.pem
 certs/samsung/
 

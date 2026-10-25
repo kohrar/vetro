@@ -10,12 +10,25 @@ function Installer(options) {
     this.upload = null;
     this.receiving = false;
     this.job = null;
+    var self=this;
+    this.selfUpdate = new (require('./self-update.js').SelfUpdate)({root:options.root, checkpoint:options.checkpoint, version:options.version,
+        inventory:options.inventory, available:function(){return self.available();}});
 }
+Installer.prototype.recover = function () {
+    var self=this;
+    this.selfUpdate.recover(function(job){
+        self.job=job;
+        if(job.verified && /^[a-f0-9]{32}$/.test(job.id || '')) {
+            try { fs.unlinkSync(path.join(self.directory,job.id+'.wgt')); } catch (_) {}
+            self.upload=null;
+        }
+    });
+};
 Installer.prototype.available = function () {
     var s = this.options.status();
     return s.mode === 'tv-integration' && !!(s.agent && s.agent.connected);
 };
-Installer.prototype.busy = function () { return this.receiving || !!(this.job && /^(checking|installing|verifying)$/.test(this.job.state)); };
+Installer.prototype.busy = function () { return this.receiving || !!(this.job && /^(checking|installing|verifying|waiting_restart)$/.test(this.job.state)); };
 Installer.prototype.clear = function () {
     if (this.upload) { try { fs.unlinkSync(this.upload.path); } catch (_) {} this.upload = null; }
 };
@@ -23,7 +36,7 @@ Installer.prototype.snapshot = function () {
     if (this.upload && Date.now() > this.upload.expiresAt && !this.busy()) this.clear();
     var u = this.upload;
     return {available: this.available(), busy: this.busy(), maxBytes: info.MAX_WGT,
-        upload: u ? {token:u.token, packageId:u.packageId, version:u.version, name:u.name, bytes:u.bytes, expiresAt:u.expiresAt} : null,
+        upload: u ? {token:u.token, packageId:u.packageId, version:u.version, name:u.name, bytes:u.bytes, expiresAt:u.expiresAt, selfUpdate:!!u.selfUpdate, currentVersion:u.currentVersion} : null,
         job: this.job};
 };
 Installer.prototype.receive = function (req) {
@@ -49,8 +62,10 @@ Installer.prototype.receive = function (req) {
                 if (req.resume) req.resume();
                 return reject(error);
             }
-            fs.promises.readFile(file).then(function (data) { return info.fromBuffer(data, {requireSigned:true}); }).then(function (metadata) {
-                if (metadata.packageId === 'vetrotvapp') throw Error('Use the desktop tools to update Vetro itself');
+            fs.promises.readFile(file).then(async function (data) {
+                var metadata=await info.fromBuffer(data, {requireSigned:true});
+                return metadata.packageId==='vetrotvapp' ? self.selfUpdate.inspect(data,metadata) : metadata;
+            }).then(function (metadata) {
                 self.upload = Object.assign(metadata, {token:token, path:file, bytes:bytes, expiresAt:Date.now()+15*60*1000});
                 self.receiving = false; resolve(self.snapshot());
             }).catch(function (e) { try { fs.unlinkSync(file); } catch (_) {} self.receiving = false; reject(e); });
@@ -79,21 +94,28 @@ Installer.prototype.receive = function (req) {
         req.on('error', function () { finish(Error('Upload failed')); });
     });
 };
-Installer.prototype.start = function (token) {
+Installer.prototype.start = function (token, confirmSelfUpdate) {
     this.snapshot();
     if (this.busy() || this.options.isBusy()) throw Object.assign(Error('Another app operation is in progress'), {statusCode:409});
     if (!this.available()) throw Object.assign(Error('Root agent is disconnected; no installation sent'), {statusCode:503});
     var u = this.upload;
     if (!u || typeof token !== 'string' || token !== u.token) throw Object.assign(Error('Upload expired; choose the file again'), {statusCode:409});
+    if (u.selfUpdate && confirmSelfUpdate !== true) throw Object.assign(Error('Confirm that you understand the restart and manual recovery instructions'), {statusCode:400});
+    var selfSubmitted=false;
     var self = this, job = this.job = {id:u.token, name:u.name, packageId:u.packageId, version:u.version,
         state:'checking', verified:false, message:'Checking the installed version…', startedAt:Date.now()};
     // The HTTP response returns immediately. A browser disconnect never retries an install.
     this.completion = Promise.resolve().then(function () { return self.options.inventory(); }).then(function (before) {
         if (before.registryError) throw Error('Fresh TV inventory unavailable; no installation sent');
         job.previousVersion = (before.apps.find(function (a) { return a.packageId === u.packageId; }) || {}).version || null;
-        job.state='installing'; job.message='Installing on the TV…'; job.submitted=null;
+        if(u.selfUpdate){
+            job=self.job=self.selfUpdate.prepare(u,job);
+            selfSubmitted=true;
+            self.recover();
+        }else { job.state='installing'; job.message='Installing on the TV…'; job.submitted=null; }
         return self.options.install(u.packageId,u.path);
     }).then(function (output) {
+        if(u.selfUpdate){job.message='Update submitted. Waiting for a new Vetro service to verify the build…';return null;}
         job.submitted=true;
         var text=String(output || '');
         if (!/install completed|successfully installed/i.test(text) || /install failed|installation failed/i.test(text)) {
@@ -102,12 +124,14 @@ Installer.prototype.start = function (token) {
         job.state='verifying'; job.message='Checking the TV inventory for version '+u.version+'…';
         return self.verify(u, 3);
     }).then(function (rows) {
+        if(u.selfUpdate)return;
         job.state='verified'; job.verified=true; job.message='Installed version '+u.version+' confirmed in the TV inventory. Opening the app has not been tested.';
         job.appIds=rows.map(function (a) { return a.appId; });
     }).catch(function (e) {
+        if(selfSubmitted){job.message='Update connection ended. Waiting for Vetro to restart; no update will be retried automatically.';return;}
         job.state=job.submitted===undefined?'failed':'unverified';
         job.message=String(e.message || e);
-    }).finally(function () { job.finishedAt=Date.now(); self.clear(); });
+    }).finally(function () { if(!selfSubmitted){job.finishedAt=Date.now(); self.clear();} });
     return this.snapshot();
 };
 Installer.prototype.verify = function (u, remaining) {

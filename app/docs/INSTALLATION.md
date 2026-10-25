@@ -111,10 +111,52 @@ uploaded version. **Installation verified** confirms the installed version, not
 that the app opens or behaves correctly. A failed or disconnected request never
 automatically retries an installation. Reopen **Install app** or use **Check status**
 to recover the result after reloading the browser. Results survive browser reloads,
-but not a Vetro service restart.
+but ordinary app results do not survive a Vetro service restart. Self-update results are persisted separately.
 
 Vetro checks for author/distributor signature files; the TV validates the actual
 signatures and certificate permissions. This screen does not sign packages or
 accept certificates. Uploaded files expire after 15 minutes and are deleted after
-an installation attempt. Use the desktop tools for Vetro's own updates so that
-restarting Vetro cannot interrupt verification of its own installation.
+an ordinary installation attempt. Self-update uploads are retained while the update is pending.
+
+
+## Update Vetro without changing Host PC IP
+
+Starting with version 0.2.4, **Install app** also accepts a newer signed Vetro TV
+integration package. Install this initial self-update-capable version from the
+computer once. Keep the original author certificate and its password backed up;
+future update packages must use the exact same author certificate. Update the
+versions in `config.xml`, `package.json` and `service/build-info.js` together when
+building a newer package. Equal-version reinstalls and downgrades are rejected by
+the self-update screen; use desktop recovery for those cases.
+
+1. First confirm that Vetro's service and root agent return without manually
+   opening the app after a TV restart. A certificate alone does not guarantee this.
+2. Open **Install app**, upload the newer integration WGT, and review the versions.
+3. Read the recovery instructions and check the acknowledgement. Select
+   **Update Vetro and restart** once. Keep the TV powered on.
+4. Leave the browser open. The connection may disappear while the service is
+   replaced. The browser polls for its return for up to four minutes, without
+   repeating the installation command.
+5. The new service reads a durable checkpoint and checks its running version,
+   author certificate, SHA-256 hashes of the uploaded payload files, and a fresh
+   native package inventory. **Installation verified** means these checks passed;
+   it is not validation of every feature of the new release. Select
+   **Reload updated dashboard** to load the new interface.
+
+The checkpoint is flushed to storage before submitting an update. A crash between
+saving it and submitting the command therefore leaves an uncertain result, never
+an automatically repeated installation. If startup/root access is not confirmed
+within three minutes, the result becomes **Installation not verified**. **Check
+status** may subsequently recheck the installed build when root access returns;
+it never retries installation. Self-update results survive browser and service
+restarts. Signing is still done outside Vetro; the TV validates package signatures.
+
+There is no automatic rollback. If the new service cannot start, restore Developer
+Mode's **Host PC IP** to the computer's LAN address, restart the TV, and reinstall a
+known-good signed integration WGT with Tizen Studio. Once it works, restore Host PC
+IP to `127.0.0.1`. If only root access is missing, opening Vetro once on the TV can
+start its service; then check Developer Mode and wait for the root agent.
+
+Self-update lifecycle and failure recovery have automated fixture coverage. A
+controlled self-update and recovery on a physical TV are still required before
+relying on this feature for unattended updates.

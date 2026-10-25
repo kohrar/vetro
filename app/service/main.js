@@ -155,7 +155,10 @@ var installer = new (require('./installer.js').Installer)({
 });
 function handleInstaller(req, res, url) {
     res.setHeader('Cache-Control', 'no-store');
-    if (req.method === 'GET' && url === '/installer') return serveJson(res, installer.snapshot());
+    if (req.method === 'GET' && url === '/installer') {
+        if (installer.job && installer.job.selfUpdate) installer.recover();
+        return serveJson(res, installer.snapshot());
+    }
     if (req.method !== 'POST') return serveJson(res, {error:'Unsupported installer request'}, 405);
     var origin = req.headers.origin;
     if (origin && origin !== 'http://' + req.headers.host) return serveJson(res, {error:'Open the installer from this TV dashboard'}, 403);
@@ -164,7 +167,7 @@ function handleInstaller(req, res, url) {
     if (url === '/installer/install') {
         if ((req.headers['content-type'] || '').split(';')[0] !== 'application/json') return serveJson(res,{error:'Expected JSON'},415);
         return readJsonBody(req,res,function (p) {
-            try { serveJson(res,installer.start(p.token),202); }
+            try { serveJson(res,installer.start(p.token,p.confirmSelfUpdate),202); }
             catch (e) { serveJson(res,{error:e.message},e.statusCode||400); }
         });
     }
@@ -640,6 +643,7 @@ http.createServer(function (req, res) {
 });
 
 platform.start();
+installer.recover();
 // Retry after boot and helper disconnects, including late adapter availability.
 var inputRestoreTimer=setInterval(restoreInput,5000);if(inputRestoreTimer.unref)inputRestoreTimer.unref();
 

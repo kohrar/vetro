@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Vetro 0.2.4 self-updates:** Install app accepts newer TV integration packages
+  signed by the same author. Updates require an explicit recovery acknowledgement,
+  persist a checkpoint before submission, and never automatically retry. After a
+  restart Vetro checks payload hashes, author identity, running version and native
+  inventory. The browser reconnects and offers to reload the updated dashboard.
+  Fixture tests cover failures and restart recovery; physical-TV self-update and
+  manual recovery remain unverified. There is no automatic rollback.
+
 - **Diagnostics read from seven community reports:** two things had never worked outside the Q80A. The SoC temperature was empty in every report, because Samsung's TVs have no Linux thermal zones; Vetro now reads the driver's own file (`/sys/devices/platform/soc/*thermal/temperature`, whole degrees), which also fills the MQTT temperature sensor. And the CPU rate was empty in four of seven, because its second sample waited behind the slow startup listing in the TV's one-at-a-time command queue; the other reads now start after it.
 - **Startup listing no longer times out on slower TVs:** it was one command that needed 13–17 s of `systemctl list-unit-files` work on a Q80A, against a 15 s limit, and the Diagnostics `startup` section came back *unavailable: command timed out* in the QN55Q65, Q65S95C and QN55S95B reports. The running states and the boot states are now two commands (the second with a 60 s limit); if the second fails, the listing still shows what runs, with the boot state unknown. The report gives this section a longer deadline.
 - **Compatibility:** community report from a Samsung QN55Q65DAGXZS (2024, firmware T-NKLDUABC-0090-2123.9) on Vetro 0.2.3 (issue #10): built unsigned and loaded with apps2samsung, reported working; the export shows an authenticated UID-0 agent, the service running on Node v18.18.2 and 29 confirmed controls. Cold-boot persistence was not reported.
